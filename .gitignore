@@ -1,0 +1,5 @@
+node_modules/
+antigravity_telemetry.db
+antigravity_telemetry.db-journal
+.DS_Store
+.env
