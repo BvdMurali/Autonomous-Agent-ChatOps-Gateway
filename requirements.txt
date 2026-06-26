@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+python-telegram-bot[webhooks]
+websockets
+aiosqlite

@@ -3,3 +3,14 @@ antigravity_telemetry.db
 antigravity_telemetry.db-journal
 .DS_Store
 .env
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/

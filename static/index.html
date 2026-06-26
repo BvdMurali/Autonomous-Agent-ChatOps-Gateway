@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Force fresh load — prevents Telegram WebView from serving stale cached HTML -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <title>Antigravity Workspace</title>
+  <meta name="description" content="Live agent terminal and Human-in-the-Loop control panel for the Antigravity ChatOps Gateway." />
+
+  <!-- Telegram Mini App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ============================================
+       DESIGN TOKENS
+    ============================================ */
+    :root {
+      --bg-void:        #0a0b0f;
+      --bg-surface:     #111318;
+      --bg-card:        rgba(255,255,255,0.04);
+      --bg-glass:       rgba(255,255,255,0.06);
+      --border:         rgba(255,255,255,0.08);
+      --border-focus:   rgba(100,210,255,0.45);
+
+      --accent:         #4fc3f7;
+      --accent-glow:    rgba(79,195,247,0.18);
+      --accent-dim:     rgba(79,195,247,0.08);
+      --green:          #69f0ae;
+      --green-dim:      rgba(105,240,174,0.10);
+      --red:            #ff5252;
+      --red-dim:        rgba(255,82,82,0.10);
+      --amber:          #ffd740;
+      --amber-dim:      rgba(255,215,64,0.10);
+      --purple:         #ce93d8;
+
+      --text-primary:   #e8eaf6;
+      --text-secondary: #9fa8b5;
+      --text-dim:       #4a5568;
+      --text-mono:      #a8d8ea;
+
+      --radius:         12px;
+      --radius-sm:      8px;
+      --shadow-glow:    0 0 24px rgba(79,195,247,0.12);
+      --transition:     0.18s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* Telegram theme override */
+    body.tg-active {
+      --bg-void:    var(--tg-theme-bg-color, #0a0b0f);
+      --bg-surface: var(--tg-theme-secondary-bg-color, #111318);
+      --text-primary: var(--tg-theme-text-color, #e8eaf6);
+      --accent: var(--tg-theme-link-color, #4fc3f7);
+    }
+
+    /* ============================================
+       RESET & BASE
+    ============================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-void);
+      color: var(--text-primary);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ============================================
+       LAYOUT
+    ============================================ */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-height: 100dvh;
+    }
+
+    /* ---- HEADER ---- */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      backdrop-filter: blur(12px);
+    }
+
+    #header-logo {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-glow);
+    }
+
+    #header-title {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.3px;
+    }
+
+    #header-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 1px;
+    }
+
+    #status-badge {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      color: var(--text-secondary);
+      transition: color var(--transition);
+    }
+
+    #status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background var(--transition), box-shadow var(--transition);
+    }
+
+    #status-badge.connected #status-dot {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+    #status-badge.connected { color: var(--green); }
+
+    #status-badge.pending #status-dot {
+      background: var(--amber);
+      box-shadow: 0 0 8px var(--amber);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    #status-badge.pending { color: var(--amber); }
+
+    #status-badge.error #status-dot { background: var(--red); }
+    #status-badge.error { color: var(--red); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ---- HITL BANNER ---- */
+    #hitl-banner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: linear-gradient(90deg, var(--amber-dim), transparent);
+      border-bottom: 1px solid rgba(255,215,64,0.2);
+      animation: slide-down 0.25s ease;
+    }
+    #hitl-banner.visible { display: flex; }
+
+    @keyframes slide-down {
+      from { transform: translateY(-8px); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+
+    #hitl-banner .hitl-icon { font-size: 18px; }
+    #hitl-banner .hitl-msg  { flex: 1; font-size: 12.5px; color: var(--amber); line-height: 1.4; }
+    #hitl-banner .hitl-task { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ---- TERMINAL ---- */
+    #terminal-container {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #terminal {
+      height: 100%;
+      overflow-y: auto;
+      padding: 12px 16px;
+      scroll-behavior: smooth;
+    }
+
+    #terminal::-webkit-scrollbar { width: 4px; }
+    #terminal::-webkit-scrollbar-track { background: transparent; }
+    #terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .log-entry {
+      display: flex;
+      gap: 10px;
+      padding: 3px 0;
+      animation: fade-in 0.15s ease;
+      line-height: 1.5;
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .log-ts {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+      padding-top: 1px;
+      user-select: none;
+    }
+
+    .log-msg {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-mono);
+      word-break: break-word;
+      flex: 1;
+    }
+
+    .log-entry.info .log-msg    { color: var(--text-mono); }
+    .log-entry.warn .log-msg    { color: var(--amber); }
+    .log-entry.error .log-msg   { color: var(--red); }
+    .log-entry.success .log-msg { color: var(--green); }
+    .log-entry.system .log-msg  { color: var(--purple); font-style: italic; }
+    .log-entry.hitl .log-msg    { color: var(--amber); font-weight: 600; }
+
+    .log-prefix {
+      flex-shrink: 0;
+      font-size: 10px;
+      width: 44px;
+      text-align: right;
+      opacity: 0.55;
+      font-family: 'JetBrains Mono', monospace;
+      padding-top: 1px;
+    }
+
+    .log-entry.info .log-prefix    { color: var(--accent); }
+    .log-entry.warn .log-prefix    { color: var(--amber); }
+    .log-entry.error .log-prefix   { color: var(--red); }
+    .log-entry.success .log-prefix { color: var(--green); }
+    .log-entry.system .log-prefix  { color: var(--purple); }
+    .log-entry.hitl .log-prefix    { color: var(--amber); }
+
+    #terminal-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+    #terminal-empty .empty-icon { font-size: 32px; opacity: 0.4; }
+    #terminal-empty p { font-size: 12px; }
+
+    /* ---- HITL ACTIONS ---- */
+    #hitl-actions {
+      display: none;
+      padding: 10px 16px;
+      gap: 8px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    #hitl-actions.visible { display: flex; }
+
+    .btn {
+      flex: 1;
+      min-width: 90px;
+      padding: 9px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    #btn-approve {
+      background: var(--green-dim);
+      border-color: rgba(105,240,174,0.3);
+      color: var(--green);
+    }
+    #btn-approve:hover { background: rgba(105,240,174,0.2); box-shadow: 0 0 14px rgba(105,240,174,0.2); }
+
+    #btn-abort {
+      background: var(--red-dim);
+      border-color: rgba(255,82,82,0.3);
+      color: var(--red);
+    }
+    #btn-abort:hover { background: rgba(255,82,82,0.2); box-shadow: 0 0 14px rgba(255,82,82,0.2); }
+
+    /* ---- INPUT ROW ---- */
+    #input-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      padding: 10px 16px 14px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #cmd-input {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      resize: none;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      line-height: 1.5;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+    #cmd-input::placeholder { color: var(--text-dim); }
+    #cmd-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    #btn-send {
+      background: linear-gradient(135deg, var(--accent), #29b6f6);
+      border: none;
+      border-radius: var(--radius-sm);
+      width: 38px; height: 38px;
+      color: var(--bg-void);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: all var(--transition);
+      box-shadow: var(--shadow-glow);
+    }
+    #btn-send:hover { transform: scale(1.06); box-shadow: 0 0 20px rgba(79,195,247,0.35); }
+    #btn-send:active { transform: scale(0.95); }
+    #btn-send:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ---- RECONNECT OVERLAY ---- */
+    #reconnect-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,11,15,0.85);
+      backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+    }
+    #reconnect-overlay.visible { display: flex; }
+    #reconnect-overlay p { color: var(--text-secondary); font-size: 13px; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Safe area bottom padding */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      #input-row { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header id="header">
+    <div id="header-logo">⚡</div>
+    <div>
+      <div id="header-title">Antigravity Workspace</div>
+      <div id="header-sub">ChatOps Gateway Terminal</div>
+    </div>
+    <div id="status-badge">
+      <div id="status-dot"></div>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </header>
+
+  <!-- HITL INTERCEPT BANNER -->
+  <div id="hitl-banner">
+    <span class="hitl-icon">⚠️</span>
+    <div class="hitl-msg">
+      Agent execution suspended — awaiting your decision.
+      <div class="hitl-task" id="hitl-task-label"></div>
+    </div>
+  </div>
+
+  <!-- TERMINAL LOG WINDOW -->
+  <div id="terminal-container">
+    <div id="terminal" role="log" aria-live="polite" aria-label="Agent terminal output"></div>
+    <div id="terminal-empty">
+      <div class="empty-icon">🖥️</div>
+      <p>Waiting for agent events…</p>
+    </div>
+  </div>
+
+  <!-- HITL ACTION BUTTONS (shown only when pending) -->
+  <div id="hitl-actions" role="group" aria-label="Human-in-the-loop actions">
+    <button id="btn-approve" class="btn" onclick="sendHITL('approve')">✅ Approve</button>
+    <button id="btn-abort"   class="btn" onclick="sendHITL('abort')">🛑 Abort</button>
+  </div>
+
+  <!-- COMMAND INPUT -->
+  <div id="input-row">
+    <textarea
+      id="cmd-input"
+      rows="1"
+      placeholder="Override prompt or send a command…"
+      aria-label="Command input"
+    ></textarea>
+    <button id="btn-send" onclick="sendOverride()" aria-label="Send command">➤</button>
+  </div>
+
+</div>
+
+<!-- RECONNECT OVERLAY -->
+<div id="reconnect-overlay" role="status" aria-live="polite">
+  <div class="spinner"></div>
+  <p>Reconnecting to gateway…</p>
+</div>
+
+<script>
+  // ============================================================
+  // Telegram Web App SDK Integration
+  // ============================================================
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    // Apply Telegram theme if available
+    if (tg.colorScheme === 'light') {
+      // Force dark regardless — our design is dark-only
+    }
+    document.body.classList.add('tg-active');
+  }
+
+  // ============================================================
+  // CONFIG
+  // ============================================================
+  // TODO: Replace with your actual Cloudflare tunnel URL before deployment.
+  // In production this becomes:  wss://your-tunnel.trycloudflare.com/ws
+  // For local dev we auto-detect:
+  const WS_PROTOCOL = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const WS_URL = `${WS_PROTOCOL}//${location.host}/ws`;
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  let socket = null;
+  let reconnectTimer = null;
+  let isHITLPending = false;
+  let logCount = 0;
+
+  // ============================================================
+  // DOM REFS
+  // ============================================================
+  const terminal       = document.getElementById('terminal');
+  const terminalEmpty  = document.getElementById('terminal-empty');
+  const statusBadge    = document.getElementById('status-badge');
+  const statusDot      = document.getElementById('status-dot');
+  const statusText     = document.getElementById('status-text');
+  const hitlBanner     = document.getElementById('hitl-banner');
+  const hitlTaskLabel  = document.getElementById('hitl-task-label');
+  const hitlActions    = document.getElementById('hitl-actions');
+  const cmdInput       = document.getElementById('cmd-input');
+  const btnSend        = document.getElementById('btn-send');
+  const reconnectOverlay = document.getElementById('reconnect-overlay');
+
+  // ============================================================
+  // TERMINAL RENDERING
+  // ============================================================
+  function ts() {
+    const d = new Date();
+    return d.toTimeString().slice(0, 8);
+  }
+
+  const LEVEL_PREFIX = {
+    info:    'INFO ',
+    warn:    'WARN ',
+    error:   'ERR  ',
+    success: 'OK   ',
+    system:  'SYS  ',
+    hitl:    'HITL ',
+  };
+
+  function appendLog(message, level = 'info') {
+    logCount++;
+    terminalEmpty.style.display = 'none';
+
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${level}`;
+
+    entry.innerHTML = `
+      <span class="log-ts">${ts()}</span>
+      <span class="log-prefix">${LEVEL_PREFIX[level] ?? level.toUpperCase().padEnd(5)}</span>
+      <span class="log-msg">${escapeHtml(message)}</span>
+    `;
+    terminal.appendChild(entry);
+    terminal.scrollTop = terminal.scrollHeight;
+
+    // Keep DOM trim — max 500 entries
+    if (logCount > 500) {
+      terminal.removeChild(terminal.firstElementChild);
+      logCount--;
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ============================================================
+  // STATUS BADGE
+  // ============================================================
+  function setStatus(state, label) {
+    statusBadge.className = state;
+    statusText.textContent = label;
+  }
+
+  // ============================================================
+  // HITL UI
+  // ============================================================
+  function setHITLPending(pending, taskInfo = '') {
+    isHITLPending = pending;
+    if (pending) {
+      hitlBanner.classList.add('visible');
+      hitlActions.classList.add('visible');
+      hitlTaskLabel.textContent = taskInfo ? `Task: ${taskInfo}` : '';
+      setStatus('pending', 'Awaiting Decision');
+      cmdInput.placeholder = 'Type a prompt override and press ➤, or use the buttons above…';
+    } else {
+      hitlBanner.classList.remove('visible');
+      hitlActions.classList.remove('visible');
+      cmdInput.placeholder = 'Type a command or prompt (e.g. "list files", "Create a readme")…';
+      setStatus('connected', 'Connected');
+    }
+  }
+
+  // ============================================================
+  // WEBSOCKET
+  // ============================================================
+  function connect() {
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    appendLog(`Connecting to ${WS_URL} …`, 'system');
+    socket = new WebSocket(WS_URL);
+
+    socket.addEventListener('open', () => {
+      clearTimeout(reconnectTimer);
+      reconnectOverlay.classList.remove('visible');
+      setStatus('connected', 'Connected');
+      appendLog('WebSocket connected to Antigravity Gateway.', 'success');
+    });
+
+    socket.addEventListener('message', (evt) => {
+      let payload;
+      try { payload = JSON.parse(evt.data); }
+      catch { appendLog(evt.data, 'info'); return; }
+      handleEvent(payload);
+    });
+
+    socket.addEventListener('close', (evt) => {
+      setStatus('error', 'Disconnected');
+      appendLog(`Connection closed (code ${evt.code}). Reconnecting in 3s…`, 'warn');
+      reconnectOverlay.classList.add('visible');
+      reconnectTimer = setTimeout(connect, 3000);
+    });
+
+    socket.addEventListener('error', () => {
+      appendLog('WebSocket error — see browser console.', 'error');
+    });
+  }
+
+  function sendJSON(obj) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(obj));
+      return true;
+    }
+    appendLog('Not connected to gateway — cannot send command.', 'warn');
+    return false;
+  }
+
+  // ============================================================
+  // EVENT HANDLER
+  // ============================================================
+  function handleEvent(payload) {
+    const type = payload.type;
+
+    if (type === 'log') {
+      appendLog(payload.message ?? JSON.stringify(payload), payload.level ?? 'info');
+
+    } else if (type === 'hitl_pending') {
+      const taskId = payload.taskId ?? 'unknown';
+      const error  = payload.error  ?? '';
+      appendLog(`⚠️ HITL Intercept — Task: ${taskId} | Error: ${error}`, 'hitl');
+      setHITLPending(true, taskId);
+
+    } else if (type === 'hitl_resolved') {
+      const status = payload.status;
+      const icons  = { APPROVED: '✅', ABORTED: '🛑', OVERRIDE: '✍️', SUPERSEDED: '⏭️', PROCEED: '▶️' };
+      const levels = { APPROVED: 'success', ABORTED: 'warn', OVERRIDE: 'info', SUPERSEDED: 'system' };
+      const extra  = payload.text ? ` → "${payload.text}"` : '';
+      appendLog(`${icons[status] ?? '•'} HITL Resolved: ${status}${extra}`, levels[status] ?? 'info');
+      setHITLPending(false);
+
+    } else if (type === 'telemetry') {
+      appendLog(
+        `📊 Telemetry [${payload.task_id}] in:${payload.input_tokens} out:${payload.output_tokens} cost:$${Number(payload.estimated_cost).toFixed(6)}`,
+        'system'
+      );
+
+    } else if (type === 'state_update') {
+      appendLog(`🔄 State update — ${payload.key}: ${payload.value}`, 'system');
+
+    } else if (type === 'ack') {
+      if (payload.action === 'execute') {
+        // Execution engine confirmed it picked up the task — no extra noise
+      } else {
+        const icon = payload.resolved ? '✔' : '✘';
+        appendLog(`${icon} ACK: ${payload.action} (resolved=${payload.resolved})`, 'system');
+      }
+
+    } else if (type === 'error') {
+      appendLog(`Gateway error: ${payload.message}`, 'error');
+
+    } else {
+      appendLog(JSON.stringify(payload), 'info');
+    }
+  }
+
+  // ============================================================
+  // ACTION SENDERS
+  // ============================================================
+  function sendHITL(action) {
+    const sent = sendJSON({ action });
+    if (sent) {
+      const labels = { approve: '🚀 Approve sent', abort: '🛑 Abort sent' };
+      appendLog(labels[action] ?? `${action} sent`, 'system');
+    }
+  }
+
+  function sendOverride() {
+    const text = cmdInput.value.trim();
+    if (!text) return;
+
+    if (isHITLPending) {
+      // HITL mode: send an override decision
+      sendJSON({ action: 'override', text });
+      appendLog(`✍️ Override sent: "${text}"`, 'system');
+    } else {
+      // Execution mode: dispatch to the local execution engine on the server.
+      // The server will echo [user] prompt back to all clients and run the task.
+      sendJSON({ action: 'execute', prompt: text });
+    }
+    cmdInput.value = '';
+    autoResize(cmdInput);
+  }
+
+  // ============================================================
+  // INPUT UX — auto-resize textarea + Enter to send
+  // ============================================================
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 80) + 'px';
+  }
+
+  cmdInput.addEventListener('input', () => autoResize(cmdInput));
+
+  cmdInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendOverride();
+    }
+  });
+
+  // ============================================================
+  // BOOT
+  // ============================================================
+  connect();
+</script>
+</body>
+</html>
