@@ -16,7 +16,7 @@ to a **Telegram Mini App** frontend via a live WebSocket event bus.
 ## Features
 
 - **Human-in-the-Loop (HITL)**: Suspends agent execution mid-flight using `asyncio.Future`,
-  waiting for a Telegram operator to Approve, Abort, or Override.
+  waiting for a Telegram operators to Approve, Abort, or Override.
 - **WebSocket Event Bus**: Real-time bidirectional channel between the Python backend
   and the Telegram Mini App terminal UI.
 - **Telegram Bot Integration**: `/status`, `/abort`, `/dashboard` commands with inline
