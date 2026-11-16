@@ -1,7 +1,7 @@
 # Antigravity ChatOps Gateway ⚡
 
 A production-grade **Python FastAPI** ChatOps relay server that bridges your autonomous AI agent
-to a **Telegram Mini App** frontend via a live WebSocket event bus.
+to a **Telegram Mini App** frontend via live WebSocket event bus.
 
 ## Architecture
 
